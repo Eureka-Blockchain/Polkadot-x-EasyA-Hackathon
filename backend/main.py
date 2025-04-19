@@ -136,6 +136,13 @@ def sha_exists(sha: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.get("/test/contract_exists")
+def contract_exists():
+    try:
+        result = contract.functions.storedValue().call()
+        return {"value":result}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get("/")
