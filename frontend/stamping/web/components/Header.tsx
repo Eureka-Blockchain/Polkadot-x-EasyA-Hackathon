@@ -3,9 +3,11 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { isAuthenticated, user, logout } = useAuth();
 
   return (
     <header className="bg-white shadow-md py-4 sticky top-0 z-50">
@@ -51,20 +53,41 @@ export default function Header() {
                 Pricing
               </Link>
             </li>
+            {isAuthenticated && (
+              <li>
+                <Link href="/dashboard" className="text-gray-700 hover:text-blue-600 font-medium">
+                  Dashboard
+                </Link>
+              </li>
+            )}
           </ul>
           <div className="flex items-center gap-4">
-            <Link 
-              href="/login" 
-              className="text-blue-600 hover:text-blue-700 font-medium"
-            >
-              Login
-            </Link>
-            <Link 
-              href="/signup" 
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
-            >
-              Sign Up
-            </Link>
+            {isAuthenticated ? (
+              <div className="flex items-center gap-4">
+                <span className="text-gray-600">{user?.email}</span>
+                <button 
+                  onClick={logout}
+                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                >
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <>
+                <Link 
+                  href="/login" 
+                  className="text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  Login
+                </Link>
+                <Link 
+                  href="/signup" 
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+                >
+                  Sign Up
+                </Link>
+              </>
+            )}
           </div>
         </nav>
       </div>
@@ -100,24 +123,51 @@ export default function Header() {
                 Pricing
               </Link>
             </li>
-            <li>
-              <Link 
-                href="/login" 
-                className="block py-2 text-gray-700 hover:text-blue-600 font-medium"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Login
-              </Link>
-            </li>
-            <li className="mt-2">
-              <Link 
-                href="/signup" 
-                className="block bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium text-center"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Sign Up
-              </Link>
-            </li>
+            {isAuthenticated && (
+              <li>
+                <Link 
+                  href="/dashboard" 
+                  className="block py-2 text-gray-700 hover:text-blue-600 font-medium"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Dashboard
+                </Link>
+              </li>
+            )}
+            {isAuthenticated ? (
+              <li className="mt-2">
+                <button 
+                  onClick={() => {
+                    logout();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="block w-full bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md font-medium text-center"
+                >
+                  Logout
+                </button>
+              </li>
+            ) : (
+              <>
+                <li>
+                  <Link 
+                    href="/login" 
+                    className="block py-2 text-gray-700 hover:text-blue-600 font-medium"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Login
+                  </Link>
+                </li>
+                <li className="mt-2">
+                  <Link 
+                    href="/signup" 
+                    className="block bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium text-center"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Sign Up
+                  </Link>
+                </li>
+              </>
+            )}
           </ul>
         </nav>
       )}

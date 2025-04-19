@@ -4,6 +4,8 @@ from web3 import Web3
 from auth import verify_token
 from utils import pwd_context
 from supabase import create_client, Client
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from models import (
     CompanyRegistration, CompanyResponse,
@@ -36,6 +38,14 @@ with open(Path(__file__).parent.joinpath("invoice-client","contracts","contract_
     ABI = json.load(f, strict="false")
 
 contract = w3.eth.contract(address=CONTRACT_ADDRESS, abi=ABI)
+
+# Mount static files directory
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Serve favicon.ico
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return FileResponse("static/favicon.ico")
 
 # Initialize Supabase client with error handling
 try:

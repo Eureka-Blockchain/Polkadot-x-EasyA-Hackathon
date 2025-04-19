@@ -3,20 +3,25 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function SignupPage() {
   const router = useRouter();
+  const { signup } = useAuth();
+  
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
     confirmPassword: '',
     companyName: '',
+    registeredAddress: '',
   });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [userType, setUserType] = useState<'company' | 'user'>('company');
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
@@ -57,18 +62,41 @@ export default function SignupPage() {
       return;
     }
 
-    // Simulate API call with timeout
     try {
-      // In a real application, you would make an API call to register the user
-      setTimeout(() => {
-        // Simulate successful registration
-        setIsLoading(false);
-        // Redirect to dashboard after successful registration
-        router.push('/dashboard');
-      }, 1500);
-    } catch (err) {
+      // Call the signup function from AuthContext
+      await signup({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        companyName: formData.companyName,
+        registeredAddress: formData.registeredAddress
+      }, userType);
+      
+      // Registration successful - navigation handled by auth context
+    } catch (err: any) {
       setIsLoading(false);
-      setError('An error occurred during registration');
+      
+      // Handle network errors specially
+      if (err.isNetworkError) {
+        console.log("Network error during signup - using fallback mode");
+        try {
+          // Try to sign up again - the fetch wrapper should handle fallbacks
+          await signup({
+            name: formData.name,
+            email: formData.email,
+            password: formData.password,
+            companyName: formData.companyName,
+            registeredAddress: formData.registeredAddress
+          }, userType);
+          return; // If successful, exit
+        } catch (fallbackErr: any) {
+          // If even the fallback fails, show error
+          setError(`Could not connect to server. Please try again later. (${fallbackErr.message || 'Unknown error'})`);
+        }
+      } else {
+        // Show specific error message if available
+        setError(err.message || 'An error occurred during registration');
+      }
     }
   };
 
@@ -80,6 +108,7 @@ export default function SignupPage() {
       password: 'Monday100',
       confirmPassword: 'Monday100',
       companyName: 'Demo Company',
+      registeredAddress: '123 Demo Street, Demoville'
     });
   };
 
@@ -95,6 +124,38 @@ export default function SignupPage() {
         )}
         
         <form onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Register as
+            </label>
+            <div className="flex space-x-4 mb-4">
+              <div>
+                <input 
+                  type="radio" 
+                  id="company" 
+                  name="userType" 
+                  value="company"
+                  checked={userType === 'company'}
+                  onChange={() => setUserType('company')}
+                  className="mr-2"
+                />
+                <label htmlFor="company">Company</label>
+              </div>
+              <div>
+                <input 
+                  type="radio" 
+                  id="user" 
+                  name="userType" 
+                  value="user"
+                  checked={userType === 'user'}
+                  onChange={() => setUserType('user')}
+                  className="mr-2"
+                />
+                <label htmlFor="user">User</label>
+              </div>
+            </div>
+          </div>
+        
           <div className="mb-4">
             <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
               Full Name <span className="text-red-500">*</span>
@@ -127,20 +188,40 @@ export default function SignupPage() {
             />
           </div>
           
-          <div className="mb-4">
-            <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-2">
-              Company Name
-            </label>
-            <input
-              type="text"
-              id="companyName"
-              name="companyName"
-              value={formData.companyName}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Your Company (Optional)"
-            />
-          </div>
+          {userType === 'company' && (
+            <>
+              <div className="mb-4">
+                <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-2">
+                  Company Name {userType === 'company' && <span className="text-red-500">*</span>}
+                </label>
+                <input
+                  type="text"
+                  id="companyName"
+                  name="companyName"
+                  value={formData.companyName}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Your Company"
+                  required={userType === 'company'}
+                />
+              </div>
+              
+              <div className="mb-4">
+                <label htmlFor="registeredAddress" className="block text-sm font-medium text-gray-700 mb-2">
+                  Registered Address
+                </label>
+                <textarea
+                  id="registeredAddress"
+                  name="registeredAddress"
+                  value={formData.registeredAddress}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Company Address (Optional)"
+                  rows={2}
+                />
+              </div>
+            </>
+          )}
           
           <div className="mb-4">
             <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">

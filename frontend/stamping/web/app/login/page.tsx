@@ -3,15 +3,19 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login } = useAuth();
+  
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [userType, setUserType] = useState<'company' | 'user'>('company');
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -43,17 +47,27 @@ export default function LoginPage() {
       return;
     }
 
-    // Simulate API call with timeout for other accounts
     try {
-      // In a real application, you would make an API call to authenticate
-      setTimeout(() => {
-        // For demo purposes, show error for any other credentials
-        setIsLoading(false);
-        setError('Invalid email or password.');
-      }, 1500);
-    } catch (err) {
+      await login(formData, userType);
+      // Login successful - navigation handled by auth context
+    } catch (err: any) {
       setIsLoading(false);
-      setError('Invalid email or password');
+      
+      // Handle network errors specially
+      if (err.isNetworkError) {
+        console.log("Network error during login - using fallback mode");
+        try {
+          // Try to login again - the fetch wrapper should handle fallbacks
+          await login(formData, userType);
+          return; // If successful, exit
+        } catch (fallbackErr: any) {
+          // If even the fallback fails, show error
+          setError(`Could not connect to server. Please try again later. (${fallbackErr.message || 'Unknown error'})`);
+        }
+      } else {
+        // Show specific error message if available
+        setError(err.message || 'Invalid email or password');
+      }
     }
   };
 
@@ -99,6 +113,38 @@ export default function LoginPage() {
               placeholder="••••••••"
               required
             />
+          </div>
+          
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Login as
+            </label>
+            <div className="flex space-x-4">
+              <div>
+                <input 
+                  type="radio" 
+                  id="company" 
+                  name="userType" 
+                  value="company"
+                  checked={userType === 'company'}
+                  onChange={() => setUserType('company')}
+                  className="mr-2"
+                />
+                <label htmlFor="company">Company</label>
+              </div>
+              <div>
+                <input 
+                  type="radio" 
+                  id="user" 
+                  name="userType" 
+                  value="user"
+                  checked={userType === 'user'}
+                  onChange={() => setUserType('user')}
+                  className="mr-2"
+                />
+                <label htmlFor="user">User</label>
+              </div>
+            </div>
           </div>
           
           <div className="mb-6 flex items-center justify-between">
