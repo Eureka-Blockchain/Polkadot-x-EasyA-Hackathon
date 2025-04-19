@@ -2,11 +2,13 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from pydantic import BaseModel
 from web3 import Web3
 from auth import verify_token
+from utils import pwd_context
 from supabase import create_client, Client
+
 from models import (
     CompanyRegistration, CompanyResponse,
     UserRegistration, UserResponse,
-    LoginLogRegistration
+    LoginLogRegistration, UserLogin
 )
 import os
 from dotenv import load_dotenv
@@ -234,38 +236,51 @@ async def login_company(email: str, password: str):
 @app.post("/register/user", response_model=UserResponse)
 async def register_user(user_data: UserRegistration):
     try:
-        # Check if user email already exists
+        # Check if email exists
         existing_user = supabase.table("users").select("*").eq("email", user_data.email).execute()
         if existing_user.data:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="User with this email already exists"
             )
-        
-        # Verify company exists
-        company = supabase.table("companies").select("*").eq("id", str(user_data.company_id)).execute()
-        if not company.data:
+
+        # Check if company exists
+        company_result = supabase.table("companies").select("email").eq("id", str(user_data.company_id)).execute()
+        if not company_result.data:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Company not found"
             )
-        
-        # Create user record
+
+        # Extract domain from company email
+        company_email = company_result.data[0]["email"]
+        company_domain = company_email.split("@")[-1]
+
+        # Validate user email domain
+        if not user_data.email.endswith(f"@{company_domain}"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"User email must match company domain '@{company_domain}'"
+            )
+
+        # Hash the password
+        hashed_password = pwd_context.hash(user_data.password)
+
+        # Insert user
         data = {
             "full_name": user_data.full_name,
             "email": user_data.email,
             "company_id": str(user_data.company_id),
-            "password_hash": user_data.password_hash
+            "password_hash": hashed_password
         }
-        
         result = supabase.table("users").insert(data).execute()
-        
+
         if not result.data:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Failed to create user"
             )
-        
+
         user = result.data[0]
         return UserResponse(
             id=user["id"],
@@ -275,7 +290,7 @@ async def register_user(user_data: UserRegistration):
             created_at=user["created_at"],
             updated_at=user["updated_at"]
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -285,41 +300,40 @@ async def register_user(user_data: UserRegistration):
             detail=str(e)
         )
 
-@app.post("/login/user")
-async def login_user(email: str, password_hash: str):
-    try:
-        # Get user by email
-        result = supabase.table("users").select("*").eq("email", email).execute()
         
+@app.post("/login/user")
+async def login_user(credentials: UserLogin):
+    try:
+        result = supabase.table("users").select("*").eq("email", credentials.email).execute()
+
         if not result.data:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid email or password"
             )
-        
+
         user = result.data[0]
-        
-        # Verify password hash
-        if password_hash != user["password_hash"]:
+
+        # Check plaintext password against hashed password
+        if not pwd_context.verify(credentials.password, user["password_hash"]):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid email or password"
             )
-        
-        # Create login log entry
-        log_data = LoginLogRegistration(user_id=user["id"])
+
+        # Log the login
         supabase.table("login_log").insert({
-            "user_id": str(log_data.user_id)
+            "user_id": str(user["id"])
         }).execute()
-        
-        # Return user data without password hash
+
+        # Return user details (no password)
         return {
             "id": user["id"],
             "full_name": user["full_name"],
             "email": user["email"],
             "company_id": user["company_id"]
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:

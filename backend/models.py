@@ -24,21 +24,22 @@ class UserRegistration(BaseModel):
     full_name: Annotated[str, constr(min_length=2, max_length=255)]
     email: EmailStr
     company_id: uuid.UUID
-    password_hash: Annotated[str, constr(min_length=8)]
+    password: Annotated[str, constr(min_length=8)]
 
 class UserResponse(BaseModel):
     id: uuid.UUID
     full_name: str
     email: EmailStr
     company_id: uuid.UUID
-    password_hash: str
     created_at: datetime
     updated_at: datetime
 
-# Login Log Models
+# User Login Model
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
 class LoginLogRegistration(BaseModel):
     user_id: uuid.UUID
-
 class LoginLogResponse(BaseModel):
     id: int
     user_id: uuid.UUID
