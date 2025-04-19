@@ -141,11 +141,22 @@ async def register_user(user_data: UserRegistration):
             )
 
         # Check if company exists
-        company = supabase.table("companies").select("*").eq("id", str(user_data.company_id)).execute()
-        if not company.data:
+        company_result = supabase.table("companies").select("email").eq("id", str(user_data.company_id)).execute()
+        if not company_result.data:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Company not found"
+            )
+
+        # Extract domain from company email
+        company_email = company_result.data[0]["email"]
+        company_domain = company_email.split("@")[-1]
+
+        # Validate user email domain
+        if not user_data.email.endswith(f"@{company_domain}"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"User email must match company domain '@{company_domain}'"
             )
 
         # Hash the password
@@ -184,6 +195,8 @@ async def register_user(user_data: UserRegistration):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
+
+        
 @app.post("/login/user")
 async def login_user(credentials: UserLogin):
     try:
