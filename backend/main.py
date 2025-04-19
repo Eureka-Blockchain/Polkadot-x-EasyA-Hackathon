@@ -1,4 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, status
+from pydantic import BaseModel
+from web3 import Web3
 from auth import verify_token
 from supabase import create_client, Client
 from models import (
@@ -11,10 +13,27 @@ from dotenv import load_dotenv
 from passlib.context import CryptContext
 from datetime import datetime
 import uuid
+import json 
+from pathlib import Path
 
 load_dotenv()
 
 app = FastAPI()
+
+# setup web3
+# Web3 setup
+w3 = Web3(Web3.HTTPProvider(os.getenv("RPC_URL")))
+PRIVATE_KEY = os.getenv("PRIVATE_KEY")
+ACCOUNT = w3.eth.account.from_key(PRIVATE_KEY)
+CONTRACT_ADDRESS = Web3.to_checksum_address(os.getenv("CONTRACT_ADDRESS"))
+
+# Load ABI
+# /Users/gandalf/Documents/Crypto/Hackathons/EasyA/Polkadot/Code/Eureka/backend/invoice-client/contracts/EurekaInvoiceRegistry.sol
+# this needs to be contract abi not contract
+with open(Path(__file__).parent.joinpath("invoice-client","contracts","contract_abi.json")) as f:
+    ABI = json.load(f, strict="false")
+
+contract = w3.eth.contract(address=CONTRACT_ADDRESS, abi=ABI)
 
 # Initialize Supabase client with error handling
 try:
@@ -31,6 +50,91 @@ except Exception as e:
 
 # Initialize password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# models for contract
+class InvoiceSubmission(BaseModel):
+    sha256_hash: str  # hex string
+    hashcode: str
+
+class HashCheck(BaseModel):
+    sha256_hash: str
+
+class CodeCheck(BaseModel):
+    hashcode: str
+
+# contract endpoints
+@app.post("/submit")
+def submit_invoice(data: InvoiceSubmission):
+    try:
+        nonce = w3.eth.get_transaction_count(ACCOUNT.address)
+        tx = contract.functions.submitInvoice(data.sha256_hash, data.hashcode).build_transaction({
+            'from': ACCOUNT.address,
+            'nonce': nonce,
+            'gas': 300000,
+            'gasPrice': w3.to_wei('5', 'gwei')
+        })
+        signed_tx = w3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
+        tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        return {"status": "submitted", "tx_hash": tx_hash.hex()}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/revoke")
+def revoke_invoice(data: CodeCheck):
+    try:
+        nonce = w3.eth.get_transaction_count(ACCOUNT.address)
+        tx = contract.functions.revokeInvoice(data.hashcode).build_transaction({
+            'from': ACCOUNT.address,
+            'nonce': nonce,
+            'gas': 200000,
+            'gasPrice': w3.to_wei('5', 'gwei')
+        })
+        signed_tx = w3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
+        tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        return {"status": "revoked", "tx_hash": tx_hash.hex()}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/complete")
+def complete_invoice(data: CodeCheck):
+    try:
+        nonce = w3.eth.get_transaction_count(ACCOUNT.address)
+        tx = contract.functions.completeInvoice(data.hashcode).build_transaction({
+            'from': ACCOUNT.address,
+            'nonce': nonce,
+            'gas': 200000,
+            'gasPrice': w3.to_wei('5', 'gwei')
+        })
+        signed_tx = w3.eth.account.sign_transaction(tx, private_key=PRIVATE_KEY)
+        tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+        return {"status": "completed", "tx_hash": tx_hash.hex()}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/invoice/{hashcode}")
+def get_invoice(hashcode: str):
+    try:
+        invoice = contract.functions.getInvoice(hashcode).call()
+        return {
+            "hash": invoice[0],
+            "hashcode": invoice[1],
+            "issuer": invoice[2],
+            "timestamp": invoice[3],
+            "revoked": invoice[4],
+            "completed": invoice[5]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@app.get("/sha-exists/{sha}")
+def sha_exists(sha: str):
+    try:
+        exists = contract.functions.shaExists(sha).call()
+        return {"exists": exists}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 
 @app.get("/")
 def read_root():
