@@ -136,3 +136,28 @@ export const userAPI = {
     return fetchWrapper.get('/protected', { token, mockData });
   },
 }; 
+
+
+
+// interface to match with EurakaInvoiceRegistry.sol contract 
+// deployed on westend at contract address: "0x3C197333cFDa62bcd12FEdcEc43e0b6929110355"
+export interface Invoice {
+  hash: string;        // bytes32
+  hashcode: string;    // string
+  issuer: string;      // address
+  timestamp: number;   // uint256 (block timestamp)
+  revoked: boolean;    // bool
+  completed: boolean;  // bool
+}
+
+// Create a constant with the example invoice data, this is actually stored
+// in westend rpc: https://westend-asset-hub-eth-rpc.polkadot.io
+// (can use remix to query it: https://remix.polkadot.io)
+export const exampleInvoice: Invoice = {
+  hash: "0x5468697320697320612064756d6d792074657374207064660000000000000000",
+  hashcode: "INV-2025-2004",
+  issuer: "0x65B85C546fbb0211aCd676a852397588360fAC37",
+  timestamp: 1745126460,
+  revoked: false,
+  completed: false
+};
