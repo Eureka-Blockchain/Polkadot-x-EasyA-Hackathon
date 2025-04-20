@@ -6,6 +6,7 @@ from utils import pwd_context
 from supabase import create_client, Client
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from substrateinterface import SubstrateInterface, ContractCode, Keypair
 
 from models import (
     CompanyRegistration, CompanyResponse,
@@ -73,6 +74,43 @@ class HashCheck(BaseModel):
 
 class CodeCheck(BaseModel):
     hashcode: str
+
+# Westend RPC and contract details
+WS_URL = "wss://westend-rpc.polkadot.io"
+CONTRACT_ADDRESS = "0x3C197333cFDa62bcd12FEdcEc43e0b6929110355"
+METADATA_PATH = "./EurekaInvoiceRegistry.contract"  # metadata JSON from ink! compilation
+HASH_CODE = "INV-2025-2004"
+
+@app.get("/invoice/{hashcode}")
+def get_invoice(hashcode: str):
+    try:
+        # Connect to Westend
+        substrate = SubstrateInterface(
+            url=WS_URL,
+            type_registry_preset='substrate-node-template',
+        )
+
+        # Load contract metadata
+        contract_code = ContractCode.create_from_contract_files(
+            metadata_file=METADATA_PATH
+        )
+
+        # Read from contract
+        contract = contract_code.read_contract(substrate, CONTRACT_ADDRESS)
+
+        result = contract.read(keypair=Keypair.create_from_uri('//Alice'), method="getInvoice", args={"hashcode": hashcode})
+
+        if result.is_success:
+            return {"invoice": result.contract_result_data}
+        else:
+            raise HTTPException(status_code=500, detail=f"Contract call failed: {result.error_message}")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
 
 # contract endpoints
 @app.post("/submit")
